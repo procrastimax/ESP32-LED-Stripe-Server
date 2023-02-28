@@ -1,4 +1,5 @@
-
 [esp32-wifi-led-api]
-ssid="HelloWorld"
-passphrase="WorldHello"
+ssid = "HelloWorld"
+passphrase = "WorldHello"
+wifi_timeout_wait_seconds = 15
+wifi_connection_attempts = 5
