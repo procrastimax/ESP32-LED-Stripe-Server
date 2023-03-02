@@ -9,6 +9,8 @@ use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
 use std::num::NonZeroI32;
 use std::{thread::sleep, time::Duration};
 
+mod led;
+
 #[toml_cfg::toml_config]
 struct Settings {
     #[default("")]
