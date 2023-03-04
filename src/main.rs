@@ -1,16 +1,36 @@
+use embedded_svc::io::Write;
 use esp_idf_sys::{self as _, EspError}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 use esp_idf_hal::peripherals::Peripherals;
 
+use esp_idf_svc::http::server::{Configuration as HttpConfiguration, EspHttpServer};
 use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, wifi::EspWifi};
 
-use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
+use embedded_svc::{
+    http::Method,
+    wifi::{ClientConfiguration, Configuration, Wifi},
+};
+use rgb::RGBA8;
 
-use std::num::NonZeroI32;
+trait RGBABrightnessExt {
+    fn scale_rgb_to_brightness(&self) {}
+}
+
+impl RGBABrightnessExt for RGBA8 {
+    fn scale_rgb_to_brightness(&self) {
+        println!("test");
+    }
+}
+
+use std::sync::RwLock;
+use std::{num::NonZeroI32, sync::Arc};
 use std::{thread::sleep, time::Duration};
 
 mod led;
 use led::{RGB8, WS2812RMT};
+
+mod api_handler;
+use api_handler::{GetRGBAHandler, HelpHandler, SetRGBAHandler};
 
 #[toml_cfg::toml_config]
 struct Settings {
@@ -28,8 +48,8 @@ struct Settings {
 struct LedStatus;
 
 impl LedStatus {
-    const SUCCESS: RGB8 = RGB8::new(0, 255, 0);
-    const FAILURE: RGB8 = RGB8::new(255, 0, 0);
+    const SUCCESS: RGB8 = RGB8::new(0, 10, 0);
+    const FAILURE: RGB8 = RGB8::new(10, 0, 0);
     const OFF: RGB8 = RGB8::new(0, 0, 0);
 }
 
@@ -129,5 +149,41 @@ fn main() -> Result<(), EspError> {
             }
         };
     }
-    Ok(())
+
+    let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
+
+    let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
+
+    esp_server
+        .handler(
+            "/getRGBA",
+            Method::Get,
+            GetRGBAHandler::new(rgba_values.clone()),
+        )
+        .unwrap();
+
+    esp_server
+        .handler(
+            "/setRGBA",
+            Method::Get,
+            SetRGBAHandler::new(rgba_values.clone()),
+        )
+        .unwrap();
+
+    esp_server
+        .fn_handler("/health", Method::Get, |request| {
+            println!("Handling health request");
+            let mut response = request.into_ok_response()?;
+            response.write_all(b"I am alive")?;
+            response.flush()?;
+            Ok(())
+        })
+        .unwrap();
+    esp_server
+        .handler("/help", Method::Get, HelpHandler::new())
+        .unwrap();
+
+    loop {
+        sleep(Duration::from_millis(1000));
+    }
 }

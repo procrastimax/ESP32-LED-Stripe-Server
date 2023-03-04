@@ -23,7 +23,17 @@ use esp_idf_sys::{
     rmt_tx_config_t, rmt_wait_tx_done, rmt_write_sample, u_int8_t,
 };
 
-pub use rgb::RGB8;
+pub use rgb::{RGB8, RGBA8};
+
+trait RGBABrightnessExt {
+    fn scale_values_to_brightness(&self);
+}
+
+impl RGBABrightnessExt for RGBA8 {
+    fn scale_values_to_brightness(&self) {
+        todo!()
+    }
+}
 
 const WS2812_T0H_NS: u32 = 350;
 const WS2812_T0L_NS: u32 = 1000;
