@@ -5,8 +5,9 @@ use embedded_svc::http::server::{Handler, Request};
 use embedded_svc::http::Query;
 use embedded_svc::io::Write;
 use esp_idf_svc::http::server::EspHttpConnection;
-use rgb::RGBA8;
 use url::Url;
+
+use crate::led::{RGBABrightnessExt, RGBA8};
 
 // TODO: proper error handling when receiving request, parsing URLs, etc. -> respond with error codes
 
@@ -72,10 +73,13 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler {
                     new_rgba.a = value.to_string().parse::<u8>().unwrap();
                 }
                 _ => {
-                    println!("Unknown query parameter: {}-{}!", color, value)
+                    println!("Unknown query parameter! key:{} value:{}!", color, value)
                 }
             }
         }
+
+        let rgb_out = new_rgba.get_updated_channels();
+        println!("real RGB values for LED: {}", rgb_out);
 
         let mut response = req.into_ok_response()?;
         response.write_fmt(format_args!(
