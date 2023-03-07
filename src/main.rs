@@ -27,7 +27,6 @@ use std::{num::NonZeroI32, sync::Arc};
 use std::{thread::sleep, time::Duration};
 
 mod led;
-use led::{RGB8, WS2812RMT};
 
 mod api_handler;
 use api_handler::{GetRGBAHandler, HelpHandler, SetRGBAHandler};
@@ -43,17 +42,6 @@ struct Settings {
     #[default(5)]
     wifi_connection_attempts: u16,
 }
-
-#[derive(Debug)]
-struct LedStatus;
-
-impl LedStatus {
-    const SUCCESS: RGB8 = RGB8::new(0, 10, 0);
-    const FAILURE: RGB8 = RGB8::new(10, 0, 0);
-    const OFF: RGB8 = RGB8::new(0, 0, 0);
-}
-
-const STATUS_LED_DURATION_SECONDS: u64 = 2;
 
 fn create_wifi_driver() -> Result<EspWifi<'static>, EspError> {
     println!("Creating wifi driver");
@@ -91,35 +79,19 @@ fn connect_to_wifi(wifi_driver: &mut EspWifi) -> Result<(), EspError> {
     return Err(EspError::from_non_zero(NonZeroI32::new(12295).unwrap()));
 }
 
-fn show_success(led: &mut WS2812RMT) {
-    led.set_pixel(LedStatus::SUCCESS)
-        .expect("WS2812 LED should be settable to green light");
-    sleep(Duration::from_secs(STATUS_LED_DURATION_SECONDS));
-    led.set_pixel(LedStatus::OFF)
-        .expect("WS2812 LED should be settable");
-}
-
-fn show_failure(led: &mut WS2812RMT) {
-    led.set_pixel(LedStatus::FAILURE)
-        .expect("WS2812 LED should be settable to red light");
-    sleep(Duration::from_secs(STATUS_LED_DURATION_SECONDS));
-    led.set_pixel(LedStatus::OFF)
-        .expect("WS2812 LED should be settable");
-}
-
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    let mut rgb_led = WS2812RMT::new(8).expect("RGB LED should be creatable!");
+    let mut rgb_led = led::WS2812RMT::new(8).expect("RGB LED should be creatable!");
 
     let mut wifi_driver = match create_wifi_driver() {
         Ok(x) => x,
         Err(e) => {
             // when the wifi driver creation fails, the program should stop
             eprintln!("Could not create esp32 wifi driver! Error: {:?}", e,);
-            show_failure(&mut rgb_led);
+            led::show_failure(&mut rgb_led);
             return Err(e);
         }
     };
@@ -129,7 +101,7 @@ fn main() -> Result<(), EspError> {
         match connect_to_wifi(&mut wifi_driver) {
             Ok(_) => {
                 println!("Successfully connected to wifi!");
-                show_success(&mut rgb_led);
+                led::show_success(&mut rgb_led);
                 break;
             }
             Err(e) => {
@@ -144,7 +116,7 @@ fn main() -> Result<(), EspError> {
                         "Could not connect to wifi after {:?} attemps, quitting...",
                         SETTINGS.wifi_connection_attempts
                     );
-                    show_failure(&mut rgb_led);
+                    led::show_failure(&mut rgb_led);
                 }
             }
         };

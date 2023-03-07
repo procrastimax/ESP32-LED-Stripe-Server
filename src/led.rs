@@ -14,6 +14,8 @@
 
 use ::core::ffi::c_void;
 use std::ptr::{null, null_mut};
+use std::thread::sleep;
+use std::time::Duration;
 
 use esp_idf_sys::EspError;
 use esp_idf_sys::{
@@ -180,4 +182,31 @@ impl WS2812RMT {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+struct LedStatus;
+
+impl LedStatus {
+    const SUCCESS: RGB8 = RGB8::new(0, 10, 0);
+    const FAILURE: RGB8 = RGB8::new(10, 0, 0);
+    const OFF: RGB8 = RGB8::new(0, 0, 0);
+}
+
+const STATUS_LED_DURATION_SECONDS: u64 = 1;
+
+pub fn show_success(led: &mut WS2812RMT) {
+    led.set_pixel(LedStatus::SUCCESS)
+        .expect("WS2812 LED should be settable to green light");
+    sleep(Duration::from_secs(STATUS_LED_DURATION_SECONDS));
+    led.set_pixel(LedStatus::OFF)
+        .expect("WS2812 LED should be settable");
+}
+
+pub fn show_failure(led: &mut WS2812RMT) {
+    led.set_pixel(LedStatus::FAILURE)
+        .expect("WS2812 LED should be settable to red light");
+    sleep(Duration::from_secs(STATUS_LED_DURATION_SECONDS));
+    led.set_pixel(LedStatus::OFF)
+        .expect("WS2812 LED should be settable");
 }
