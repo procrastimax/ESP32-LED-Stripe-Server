@@ -7,7 +7,8 @@ use embedded_svc::io::Write;
 use esp_idf_svc::http::server::EspHttpConnection;
 use url::Url;
 
-use crate::rmt_rgb_led::{RGBABrightnessExt, RGBA8};
+use crate::pwm_rgb_led::PwmRgbLed;
+use crate::rgb_led::{RGBABrightnessExt, RGBA8};
 
 // TODO: proper error handling when receiving request, parsing URLs, etc. -> respond with error codes
 
@@ -33,17 +34,21 @@ impl Handler<EspHttpConnection<'_>> for GetRGBAHandler {
     }
 }
 
-pub struct SetRGBAHandler {
-    pub rgba: Arc<RwLock<RGBA8>>,
+pub struct SetRGBAHandler<'a> {
+    rgba: Arc<RwLock<RGBA8>>,
+    led_handler: RwLock<PwmRgbLed<'a>>,
 }
 
-impl SetRGBAHandler {
-    pub fn new(rgba: Arc<RwLock<RGBA8>>) -> SetRGBAHandler {
-        return SetRGBAHandler { rgba };
+impl SetRGBAHandler<'_> {
+    pub fn new<'a>(
+        rgba: Arc<RwLock<RGBA8>>,
+        led_handler: RwLock<PwmRgbLed<'a>>,
+    ) -> SetRGBAHandler<'a> {
+        return SetRGBAHandler { rgba, led_handler };
     }
 }
 
-impl Handler<EspHttpConnection<'_>> for SetRGBAHandler {
+impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
         println!("Handling set RGBA request");
 
@@ -81,12 +86,15 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler {
         let rgb_out = new_rgba.get_updated_channels();
         println!("real RGB values for LED: {}", rgb_out);
 
-        let mut response = req.into_ok_response()?;
+        let mut handler = self.led_handler.write().unwrap();
+        handler.set_color(&rgb_out).unwrap();
+
+        let mut response = req.into_ok_response().unwrap();
         response.write_fmt(format_args!(
             "{},{},{},{}",
             new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
         ))?;
-        response.flush()?;
+        response.flush().unwrap();
         Ok(())
     }
 }

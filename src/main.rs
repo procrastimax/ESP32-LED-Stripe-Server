@@ -1,26 +1,22 @@
-use embedded_svc::io::Write;
 use esp_idf_sys::{self as _, EspError}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
-use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::{
+    modem::WifiModemPeripheral, peripheral::Peripheral, peripherals::Peripherals, prelude::*,
+};
 
-use esp_idf_svc::http::server::{Configuration as HttpConfiguration, EspHttpServer};
-use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, wifi::EspWifi};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    http::server::{Configuration as HttpConfiguration, EspHttpServer},
+    nvs::EspDefaultNvsPartition,
+    wifi::EspWifi,
+};
 
 use embedded_svc::{
     http::Method,
+    io::Write,
     wifi::{ClientConfiguration, Configuration, Wifi},
 };
 use rgb::RGBA8;
-
-trait RGBABrightnessExt {
-    fn scale_rgb_to_brightness(&self) {}
-}
-
-impl RGBABrightnessExt for RGBA8 {
-    fn scale_rgb_to_brightness(&self) {
-        println!("test");
-    }
-}
 
 use std::sync::RwLock;
 use std::{num::NonZeroI32, sync::Arc};
@@ -29,8 +25,14 @@ use std::{thread::sleep, time::Duration};
 mod rmt_rgb_led;
 use crate::rmt_rgb_led::{show_failure, show_success, WS2812RMT};
 
+mod rgb_led;
+
+mod pwm_rgb_led;
+
 mod api_handler;
 use api_handler::{GetRGBAHandler, HelpHandler, SetRGBAHandler};
+
+use self::pwm_rgb_led::PwmRgbLed;
 
 #[toml_cfg::toml_config]
 struct Settings {
@@ -44,14 +46,14 @@ struct Settings {
     wifi_connection_attempts: u16,
 }
 
-fn create_wifi_driver() -> Result<EspWifi<'static>, EspError> {
+fn create_wifi_driver<M: WifiModemPeripheral>(
+    modem: impl Peripheral<P = M> + 'static,
+) -> Result<EspWifi<'static>, EspError> {
     println!("Creating wifi driver");
-    let peripherals =
-        Peripherals::take().expect("could not take esp peripherals, should be available");
     let sys_loop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    let mut wifi_driver = EspWifi::new(peripherals.modem, sys_loop, Some(nvs))?;
+    let mut wifi_driver = EspWifi::new(modem, sys_loop, Some(nvs))?;
 
     wifi_driver.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: SETTINGS.ssid.into(),
@@ -85,9 +87,12 @@ fn main() -> Result<(), EspError> {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
+    let peripherals =
+        Peripherals::take().expect("could not take esp peripherals, should be available");
+
     let mut rgb_led = WS2812RMT::new(8).expect("RGB LED should be creatable!");
 
-    let mut wifi_driver = match create_wifi_driver() {
+    let mut wifi_driver = match create_wifi_driver(peripherals.modem) {
         Ok(x) => x,
         Err(e) => {
             // when the wifi driver creation fails, the program should stop
@@ -123,6 +128,18 @@ fn main() -> Result<(), EspError> {
         };
     }
 
+    let pwm_led = PwmRgbLed::new(
+        25.kHz().into(),
+        peripherals.ledc.timer0,
+        peripherals.ledc.channel0,
+        peripherals.ledc.channel1,
+        peripherals.ledc.channel2,
+        peripherals.pins.gpio1,
+        peripherals.pins.gpio2,
+        peripherals.pins.gpio3,
+    )
+    .unwrap();
+
     let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
 
     let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
@@ -139,7 +156,7 @@ fn main() -> Result<(), EspError> {
         .handler(
             "/setRGBA",
             Method::Get,
-            SetRGBAHandler::new(rgba_values.clone()),
+            SetRGBAHandler::new(rgba_values.clone(), RwLock::new(pwm_led)),
         )
         .unwrap();
 

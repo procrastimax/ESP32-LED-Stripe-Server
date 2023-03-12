@@ -25,24 +25,7 @@ use esp_idf_sys::{
     rmt_tx_config_t, rmt_wait_tx_done, rmt_write_sample, u_int8_t,
 };
 
-pub use rgb::{RGB8, RGBA8};
-
-pub trait RGBABrightnessExt {
-    fn get_updated_channels(&mut self) -> RGB8;
-}
-
-impl RGBABrightnessExt for RGBA8 {
-    /// When called, returns the "real" RGB values, which are used to control the LED
-    /// These are the "real" values, since they are scaled by the brightness/ alpha value
-    fn get_updated_channels(&mut self) -> RGB8 {
-        let rel_brightness: f64 = self.a as f64 / 255.0;
-        let r = ((self.r as f64) * rel_brightness).round() as u8;
-        let g = ((self.g as f64) * rel_brightness).round() as u8;
-        let b = ((self.b as f64) * rel_brightness).round() as u8;
-
-        RGB8::new(r, g, b)
-    }
-}
+use crate::rgb_led::RGB8;
 
 const WS2812_T0H_NS: u32 = 350;
 const WS2812_T0L_NS: u32 = 1000;
