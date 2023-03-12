@@ -129,7 +129,7 @@ fn main() -> Result<(), EspError> {
     }
 
     let pwm_led = PwmRgbLed::new(
-        25.kHz().into(),
+        1.kHz().into(),
         peripherals.ledc.timer0,
         peripherals.ledc.channel0,
         peripherals.ledc.channel1,
