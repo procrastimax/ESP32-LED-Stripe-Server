@@ -26,7 +26,8 @@ use std::sync::RwLock;
 use std::{num::NonZeroI32, sync::Arc};
 use std::{thread::sleep, time::Duration};
 
-mod led;
+mod rmt_rgb_led;
+use crate::rmt_rgb_led::{show_failure, show_success, WS2812RMT};
 
 mod api_handler;
 use api_handler::{GetRGBAHandler, HelpHandler, SetRGBAHandler};
@@ -84,14 +85,14 @@ fn main() -> Result<(), EspError> {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
-    let mut rgb_led = led::WS2812RMT::new(8).expect("RGB LED should be creatable!");
+    let mut rgb_led = WS2812RMT::new(8).expect("RGB LED should be creatable!");
 
     let mut wifi_driver = match create_wifi_driver() {
         Ok(x) => x,
         Err(e) => {
             // when the wifi driver creation fails, the program should stop
             eprintln!("Could not create esp32 wifi driver! Error: {:?}", e,);
-            led::show_failure(&mut rgb_led);
+            show_failure(&mut rgb_led);
             return Err(e);
         }
     };
@@ -101,7 +102,7 @@ fn main() -> Result<(), EspError> {
         match connect_to_wifi(&mut wifi_driver) {
             Ok(_) => {
                 println!("Successfully connected to wifi!");
-                led::show_success(&mut rgb_led);
+                show_success(&mut rgb_led);
                 break;
             }
             Err(e) => {
@@ -116,7 +117,7 @@ fn main() -> Result<(), EspError> {
                         "Could not connect to wifi after {:?} attemps, quitting...",
                         SETTINGS.wifi_connection_attempts
                     );
-                    led::show_failure(&mut rgb_led);
+                    show_failure(&mut rgb_led);
                 }
             }
         };

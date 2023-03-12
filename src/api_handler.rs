@@ -7,7 +7,7 @@ use embedded_svc::io::Write;
 use esp_idf_svc::http::server::EspHttpConnection;
 use url::Url;
 
-use crate::led::{RGBABrightnessExt, RGBA8};
+use crate::rmt_rgb_led::{RGBABrightnessExt, RGBA8};
 
 // TODO: proper error handling when receiving request, parsing URLs, etc. -> respond with error codes
 
