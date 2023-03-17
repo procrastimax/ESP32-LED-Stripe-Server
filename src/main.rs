@@ -8,6 +8,7 @@ use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     http::server::{Configuration as HttpConfiguration, EspHttpServer},
     nvs::EspDefaultNvsPartition,
+    tls::X509,
     wifi::EspWifi,
 };
 
@@ -140,7 +141,17 @@ fn main() -> Result<(), EspError> {
     )
     .unwrap();
 
-    let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
+    // TODO: enter server certificate here
+    let server_certificate = X509::der(&[0x00]);
+
+    // TODO: enter server private key here
+    let private_key = X509::der(&[0x00]);
+
+    let mut https_config = HttpConfiguration::default();
+    https_config.server_certificate = Some(server_certificate);
+    https_config.private_key = Some(private_key);
+
+    let mut esp_server = EspHttpServer::new(&https_config).unwrap();
 
     let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
 
