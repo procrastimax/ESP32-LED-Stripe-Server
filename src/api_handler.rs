@@ -1,10 +1,10 @@
 use std::borrow::Borrow;
 use std::sync::{Arc, RwLock};
 
-use embedded_svc::http::server::{Handler, Request};
+use embedded_svc::http::server::{Handler, HandlerError, Request};
 use embedded_svc::http::Query;
 use embedded_svc::io::Write;
-use esp_idf_svc::http::server::EspHttpConnection;
+use esp_idf_svc::http::server::{EspHttpConnection, EspHttpRequest};
 use url::Url;
 
 use crate::pwm_rgb_led::PwmRgbLed;
@@ -23,11 +23,21 @@ impl GetRGBAHandler {
 impl Handler<EspHttpConnection<'_>> for GetRGBAHandler {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
         let req = Request::wrap(c);
-        let mut response = req.into_ok_response()?;
-        let rgba = self.rgba.read()?;
-        response.write_fmt(format_args!("{},{},{},{}", rgba.r, rgba.g, rgba.b, rgba.a))?;
-        response.flush()?;
-        Ok(())
+        let rgba = self.rgba.read();
+
+        match rgba {
+            Ok(val) => {
+                let mut response = req.into_ok_response().unwrap();
+                response
+                    .write_fmt(format_args!("{},{},{},{}", val.r, val.g, val.b, val.a))
+                    .unwrap();
+                response.flush().unwrap();
+                return Ok(());
+            }
+            Err(_) => {
+                return Err(send_error_response(req, "could not get read lock"));
+            }
+        }
     }
 }
 
@@ -51,9 +61,19 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
 
         // create a dummy base url
         let base_url = Url::parse("https://localhost").unwrap();
-        let url = base_url.join(req.uri()).unwrap();
+        let url = match base_url.join(req.uri()) {
+            Err(_) => {
+                return Err(send_error_response(req, "parse URL from request"));
+            }
+            Ok(val) => val,
+        };
 
-        let mut new_rgba = self.rgba.write().unwrap();
+        let mut new_rgba = match self.rgba.write() {
+            Ok(val) => val,
+            Err(_) => {
+                return Err(send_error_response(req, "could not get write lock"));
+            }
+        };
 
         for pair in url.query_pairs() {
             let color = pair.0;
@@ -61,16 +81,16 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
 
             match color.borrow() {
                 "r" => {
-                    new_rgba.r = value.to_string().parse::<u8>().unwrap();
+                    new_rgba.r = value.to_string().parse::<u8>().unwrap_or(0);
                 }
                 "g" => {
-                    new_rgba.g = value.to_string().parse::<u8>().unwrap();
+                    new_rgba.g = value.to_string().parse::<u8>().unwrap_or(0);
                 }
                 "b" => {
-                    new_rgba.b = value.to_string().parse::<u8>().unwrap();
+                    new_rgba.b = value.to_string().parse::<u8>().unwrap_or(0);
                 }
                 "a" => {
-                    new_rgba.a = value.to_string().parse::<u8>().unwrap();
+                    new_rgba.a = value.to_string().parse::<u8>().unwrap_or(0);
                 }
                 _ => {
                     println!("Unknown query parameter! key:{} value:{}!", color, value)
@@ -80,17 +100,29 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
 
         let rgb_out = new_rgba.get_updated_channels();
 
-        let mut handler = self.led_handler.write().unwrap();
-        handler.set_color(&rgb_out).unwrap();
-
-        let mut response = req.into_ok_response().unwrap();
-        response.write_fmt(format_args!(
-            "{},{},{},{}",
-            new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
-        ))?;
-        response.flush().unwrap();
-        Ok(())
+        let handler = self.led_handler.write();
+        match handler {
+            Ok(mut val) => {
+                val.set_color(&rgb_out).unwrap();
+                let mut response = req.into_ok_response().unwrap();
+                response.write_fmt(format_args!(
+                    "{},{},{},{}",
+                    new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
+                ))?;
+                response.flush().unwrap();
+                Ok(())
+            }
+            Err(_) => {
+                return Err(send_error_response(req, "could not get write lock"));
+            }
+        }
     }
+}
+
+fn send_error_response(req: Request<&mut EspHttpConnection>, msg: &str) -> HandlerError {
+    let mut response = req.into_status_response(400).unwrap();
+    response.flush().unwrap();
+    return msg.into();
 }
 
 pub struct HelpHandler {}
