@@ -10,8 +10,6 @@ use url::Url;
 use crate::pwm_rgb_led::PwmRgbLed;
 use crate::rgb_led::{RGBABrightnessExt, RGBA8};
 
-// TODO: proper error handling when receiving request, parsing URLs, etc. -> respond with error codes
-
 pub struct GetRGBAHandler {
     pub rgba: Arc<RwLock<RGBA8>>,
 }
@@ -24,7 +22,6 @@ impl GetRGBAHandler {
 
 impl Handler<EspHttpConnection<'_>> for GetRGBAHandler {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
-        println!("Handling get RGBA request");
         let req = Request::wrap(c);
         let mut response = req.into_ok_response()?;
         let rgba = self.rgba.read()?;
@@ -50,12 +47,10 @@ impl SetRGBAHandler<'_> {
 
 impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
-        println!("Handling set RGBA request");
-
         let req = Request::wrap(c);
 
         // create a dummy base url
-        let base_url = Url::parse("http://localhost").unwrap();
+        let base_url = Url::parse("https://localhost").unwrap();
         let url = base_url.join(req.uri()).unwrap();
 
         let mut new_rgba = self.rgba.write().unwrap();
@@ -84,7 +79,6 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
         }
 
         let rgb_out = new_rgba.get_updated_channels();
-        println!("real RGB values for LED: {}", rgb_out);
 
         let mut handler = self.led_handler.write().unwrap();
         handler.set_color(&rgb_out).unwrap();
@@ -109,8 +103,6 @@ impl HelpHandler {
 
 impl Handler<EspHttpConnection<'_>> for HelpHandler {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
-        println!("Handling Help request");
-
         let help_text = "<h1>Help - Supported functions</h1>
             <b>/help</b> - shows this help page</br>
             <b>/setRGBA?r=VALUE&g=VALUE&b=VALUE&a=VALUE</b> - sets the r,g,b and brightness/ alpha values</br>

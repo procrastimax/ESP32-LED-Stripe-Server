@@ -45,6 +45,10 @@ struct Settings {
     wifi_timeout_wait_seconds: u16,
     #[default(5)]
     wifi_connection_attempts: u16,
+    #[default([u8;1])]
+    ssl_server_cert: [u8; 939],
+    #[default([u8;1])]
+    ssl_server_key: [u8; 1192],
 }
 
 fn create_wifi_driver<M: WifiModemPeripheral>(
@@ -141,11 +145,8 @@ fn main() -> Result<(), EspError> {
     )
     .unwrap();
 
-    // TODO: enter server certificate here
-    let server_certificate = X509::der(&[0x00]);
-
-    // TODO: enter server private key here
-    let private_key = X509::der(&[0x00]);
+    let server_certificate = X509::der(&SETTINGS.ssl_server_cert);
+    let private_key = X509::der(&SETTINGS.ssl_server_key);
 
     let mut https_config = HttpConfiguration::default();
     https_config.server_certificate = Some(server_certificate);
@@ -173,7 +174,6 @@ fn main() -> Result<(), EspError> {
 
     esp_server
         .fn_handler("/health", Method::Get, |request| {
-            println!("Handling health request");
             let mut response = request.into_ok_response()?;
             response.write_all(b"I am alive")?;
             response.flush()?;
