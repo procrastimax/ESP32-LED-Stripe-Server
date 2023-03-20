@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use embedded_svc::http::server::{Handler, HandlerError, Request};
 use embedded_svc::http::Query;
 use embedded_svc::io::Write;
-use esp_idf_svc::http::server::{EspHttpConnection, EspHttpRequest};
+use esp_idf_svc::http::server::EspHttpConnection;
 use url::Url;
 
 use crate::pwm_rgb_led::PwmRgbLed;

@@ -97,6 +97,20 @@ fn main() -> Result<(), EspError> {
 
     let mut rgb_led = WS2812RMT::new(8).expect("RGB LED should be creatable!");
 
+    let mut pwm_led = PwmRgbLed::new(
+        1.kHz().into(),
+        peripherals.ledc.timer0,
+        peripherals.ledc.channel0,
+        peripherals.ledc.channel1,
+        peripherals.ledc.channel2,
+        peripherals.pins.gpio1,
+        peripherals.pins.gpio2,
+        peripherals.pins.gpio3,
+    )
+    .expect("could not instantiate PwmRgbLed struct from peripherals!");
+
+    pwm_led.set_off().expect("could not turn pwm LEDs off!");
+
     let mut wifi_driver = match create_wifi_driver(peripherals.modem) {
         Ok(x) => x,
         Err(e) => {
@@ -132,18 +146,6 @@ fn main() -> Result<(), EspError> {
             }
         };
     }
-
-    let pwm_led = PwmRgbLed::new(
-        1.kHz().into(),
-        peripherals.ledc.timer0,
-        peripherals.ledc.channel0,
-        peripherals.ledc.channel1,
-        peripherals.ledc.channel2,
-        peripherals.pins.gpio1,
-        peripherals.pins.gpio2,
-        peripherals.pins.gpio3,
-    )
-    .unwrap();
 
     let server_certificate = X509::der(&SETTINGS.ssl_server_cert);
     let private_key = X509::der(&SETTINGS.ssl_server_key);
