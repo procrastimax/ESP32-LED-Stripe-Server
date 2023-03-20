@@ -9,7 +9,7 @@ The server uses RGB channels to control the proportion of each color channel in 
 
 ## Setup
 Setup rust nightly with the ESP toolchain. You'll need the rust nightly toolchain, ldproxy and setup support for RISC-V.
-A short guide for this can be found [here](https://esp-rs.github.io/book/installation/installation.html) (only ldproxy, RISC-V setup). 
+A short guide for this can be found [here](https://esp-rs.github.io/book/installation/installation.html) (only ldproxy, RISC-V setup).
 To properly flash the binary on to the board, you need the espflash tool, can be installed with:
 `cargo install cargo-espflash`.
 
@@ -21,11 +21,11 @@ To properly flash the binary on to the board, you need the espflash tool, can be
 5. enjoy controlling your RGB LED stripe with the ESPC3
 
 ## API Documentation
-        
+
 | Command  | Description | Returns | Status Codes  |
 |---|---|---|---|
-| \heath | Indicates if the server is running | Returns string "I am alive" | 200 (OK) |
-| \help   |  Shows a help page | Returns help text as string | 200 (OK) / 400 (Error)  | 
+| \health | Indicates if the server is running | Returns string "I am alive" | 200 (OK) |
+| \help   |  Shows a help page | Returns help text as string | 200 (OK) / 400 (Error)  |
 | \setRGBA?r=RED&g=GREEN&b=Blue&a=BRIGHTNESS | Sets the RGBA values according to their values, not all values need to be specified at the same time | all RGBA values in CSV format without header after 'set' request | 200 (Ok) / 400 (Error)
 | \getRGBA   | Retrieve current set RBGBA values  | all RGBA values in CSV format without header | 200 (OK) / 400 (Error)
 
