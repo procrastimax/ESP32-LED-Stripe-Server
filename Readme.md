@@ -8,17 +8,17 @@ The server uses RGB channels to control the proportion of each color channel in 
 **TODO: Link Android REST-API client**
 
 ## Setup
-Setup rust nightly with the ESP toolchain. You'll need the rust nightly toolchain, ldproxy and setup support for RISC-V.
+Setup rust nightly with the ESP32 toolchain. You'll need the rust nightly toolchain, ldproxy and setup support for RISC-V.
 A short guide for this can be found [here](https://esp-rs.github.io/book/installation/installation.html) (only ldproxy, RISC-V setup).
 To properly flash the binary on to the board, you need the espflash tool, can be installed with:
 `cargo install cargo-espflash`.
 
 ## Usage
-1. please make sure that your rust setup is complete (see [here](#setup)).
+1. please make sure that your nightly rust setup for RISC-V and esp32 is complete (see [here](#setup)).
 2. rename `cfg.toml.example` to `cfg.toml` and enter your wifi-credentials in there
-3. (optional if you want to use the android client, or want to use a self-signed ssl certificate): Generate a certificate authority certificate, use this certificate to sign a server ssl certificate to use server's HTTPS API. For this please take a look at the scripts at `/certs`. After generating the certificates, copy the byte arrays for the server certificate and server key in the responding fields `cfg.toml`. Sadly I could not figure out a better way, but after this you need to edit the lines in the `struct Settings` that specify the expected length of the struct's `ssl_server_cert` and `ssl_server_key` fields. If you use rust-analyzer as LSP, the linter should tell you the number you have to enter as the expected length for the byte array.
+3. (optional if you want to use the android client, or want to use a self-signed ssl certificate): Generate a certificate authority certificate, use this certificate to sign a server ssl certificate to use server's HTTPS API. For this please take a look at the scripts at `/certs`. After generating the certificates, copy the byte arrays for the server certificate and server key in the responding fields `cfg.toml`. Sadly I could not figure out a better way, but after this you need to edit the lines in the `struct Settings` that specify the expected length of the struct's `ssl_server_cert` and `ssl_server_key` fields. If you use rust-analyzer as LSP, the linter should tell you the number you have to enter as the expected length for the byte array. For even more information to generate self-signed SSL certificates take a look at my [other repo](https://github.com/procrastimax/self-signed-ssl-certs.git).
 4. run `cargo espflash /dev/ttyUSB0 --speed 921600 -s 4MB --monitor --release --partition-table=partition.csv` to compile and flash the code on your board
-5. enjoy controlling your RGB LED stripe with the ESPC3
+5. enjoy controlling your RGB LED stripe with the ESP32C3
 
 ## API Documentation
 
