@@ -5,7 +5,7 @@ The server can be requested with commands shown [here](#api-documentation).
 
 The server uses RGB channels to control the proportion of each color channel in the light. The fourth channel, the alpha/ brightness channel, scales down/ up to control the light's brightness over all 3 color channels.
 
-**TODO: Link Android REST-API client**
+I also wrote a native Android client to make request to the server's API, it is called [StripeBuddy](https://github.com/procrastimax/StripeBuddy.git).
 
 ## Setup
 Setup rust nightly with the ESP32 toolchain. You'll need the rust nightly toolchain, ldproxy and setup support for RISC-V.
