@@ -3,4 +3,7 @@
 /target
 /Cargo.lock
 cfg.toml
-certs
+/certs/*
+!certs/create_ca.sh
+!certs/create_cert.sh
+!certs/cert.ext
