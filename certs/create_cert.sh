@@ -25,10 +25,10 @@ openssl rsa -in server_priv.key -outform DER -out server_priv.key.DER
 openssl x509 -in server.crt -outform DER -out server.crt.DER
 
 # create hexdump of server certificate
-xxd -ps server.crt.DER >> ./server_cert.txt
+xxd -i server.crt.DER >> ./server_cert.txt
 
 # create hexdump of server private key
-xxd -ps server_priv.key.DER >> ./server_key.txt
+xxd -i server_priv.key.DER >> ./server_key.txt
 
 # delete unused files
 rm -v -- *.csr
