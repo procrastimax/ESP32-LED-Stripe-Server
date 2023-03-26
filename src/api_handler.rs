@@ -60,7 +60,7 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
         let req = Request::wrap(c);
 
         // create a dummy base url
-        let base_url = Url::parse("https://localhost").unwrap();
+        let base_url = Url::parse("http://localhost").unwrap();
         let url = match base_url.join(req.uri()) {
             Err(_) => {
                 return Err(send_error_response(req, "parse URL from request"));

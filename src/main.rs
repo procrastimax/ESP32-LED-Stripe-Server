@@ -8,7 +8,6 @@ use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     http::server::{Configuration as HttpConfiguration, EspHttpServer},
     nvs::EspDefaultNvsPartition,
-    tls::X509,
     wifi::EspWifi,
 };
 
@@ -45,10 +44,10 @@ struct Settings {
     wifi_timeout_wait_seconds: u16,
     #[default(5)]
     wifi_connection_attempts: u16,
-    #[default([u8;1])]
-    ssl_server_cert: [u8; 939],
-    #[default([u8;1])]
-    ssl_server_key: [u8; 1192],
+    #[default([u8;0])]
+    ssl_server_cert: [u8; 0],
+    #[default([u8;0])]
+    ssl_server_key: [u8; 0],
 }
 
 fn create_wifi_driver<M: WifiModemPeripheral>(
@@ -147,14 +146,7 @@ fn main() -> Result<(), EspError> {
         };
     }
 
-    let server_certificate = X509::der(&SETTINGS.ssl_server_cert);
-    let private_key = X509::der(&SETTINGS.ssl_server_key);
-
-    let mut https_config = HttpConfiguration::default();
-    https_config.server_certificate = Some(server_certificate);
-    https_config.private_key = Some(private_key);
-
-    let mut esp_server = EspHttpServer::new(&https_config).unwrap();
+    let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
 
     let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
 
