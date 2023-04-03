@@ -18,12 +18,20 @@ use embedded_svc::{
 };
 use rgb::RGBA8;
 
-use std::sync::RwLock;
+use std::{
+    error,
+    io::{self, Read},
+    net::TcpListener,
+    sync::RwLock,
+};
 use std::{num::NonZeroI32, sync::Arc};
 use std::{thread::sleep, time::Duration};
 
 mod rmt_rgb_led;
-use crate::rmt_rgb_led::{show_failure, show_success, WS2812RMT};
+use crate::{
+    rgb_led::RGBABrightnessExt,
+    rmt_rgb_led::{show_failure, show_success, WS2812RMT},
+};
 
 mod rgb_led;
 
@@ -86,6 +94,32 @@ fn connect_to_wifi(wifi_driver: &mut EspWifi) -> Result<(), EspError> {
     return Err(EspError::from_non_zero(NonZeroI32::new(12295).unwrap()));
 }
 
+fn update_rgba_from_tcp_msg(msg_arr: &[u8], read_length: usize, rgba: &mut RGBA8) {
+    // Message format is:
+    // r=VALUE,g=VALUE,b=VALUE,a=VALUE
+
+    if read_length <= 0 {
+        return;
+    }
+
+    let msg_str = std::str::from_utf8(&msg_arr[0..read_length - 1]).unwrap();
+
+    let channels = msg_str.split(",");
+
+    for channel in channels {
+        if let Some((channel_type, channel_value)) = channel.split_once("=") {
+            match channel_type {
+                "r" => rgba.r = channel_value.to_string().parse::<u8>().unwrap_or(rgba.r),
+                "g" => rgba.g = channel_value.to_string().parse::<u8>().unwrap_or(rgba.g),
+                "b" => rgba.b = channel_value.to_string().parse::<u8>().unwrap_or(rgba.b),
+                "a" => rgba.a = channel_value.to_string().parse::<u8>().unwrap_or(rgba.a),
+                _ => {
+                    eprintln!("received unknown channel type: {}", channel_type)
+                }
+            }
+        };
+    }
+}
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -146,39 +180,83 @@ fn main() -> Result<(), EspError> {
         };
     }
 
-    let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
+    let mut rgba = RGBA8 {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
 
-    let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
+    let listener = TcpListener::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
+    for stream in listener.incoming() {
+        let mut tcp_buf = [0 as u8; 50];
+        match stream {
+            Ok(mut stream) => {
+                println!(
+                    "received TCP connection from: {}",
+                    stream.peer_addr().unwrap()
+                );
 
-    esp_server
-        .handler(
-            "/getRGBA",
-            Method::Get,
-            GetRGBAHandler::new(rgba_values.clone()),
-        )
-        .unwrap();
+                // reading data
+                while match stream.read(&mut tcp_buf) {
+                    Ok(size) => {
+                        update_rgba_from_tcp_msg(&tcp_buf, size, &mut rgba);
+                        pwm_led.set_color(&rgba.get_updated_channels()).unwrap();
+                        true
+                    }
+                    Err(e) => {
+                        match e.kind() {
+                            io::ErrorKind::NotConnected => {
+                                println!("connection closed");
+                            }
+                            _ => {
+                                eprintln!("error when reading: {}", e);
+                            }
+                        }
+                        stream.shutdown(std::net::Shutdown::Both).unwrap();
+                        false
+                    }
+                } {}
+            }
+            Err(e) => {
+                eprintln!("error when handling incoming tcp stream: {}", e);
+            }
+        }
+    }
 
-    esp_server
-        .handler(
-            "/setRGBA",
-            Method::Get,
-            SetRGBAHandler::new(rgba_values.clone(), RwLock::new(pwm_led)),
-        )
-        .unwrap();
+    //let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
 
-    esp_server
-        .fn_handler("/health", Method::Get, |request| {
-            let mut response = request.into_ok_response()?;
-            response.write_all(b"I am alive")?;
-            response.flush()?;
-            Ok(())
-        })
-        .unwrap();
-    esp_server
-        .handler("/help", Method::Get, HelpHandler::new())
-        .unwrap();
+    //let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
+
+    //esp_server
+    //    .handler(
+    //        "/getRGBA",
+    //        Method::Get,
+    //        GetRGBAHandler::new(rgba_values.clone()),
+    //    )
+    //    .unwrap();
+
+    //esp_server
+    //    .handler(
+    //        "/setRGBA",
+    //        Method::Get,
+    //        SetRGBAHandler::new(rgba_values.clone(), RwLock::new(pwm_led)),
+    //    )
+    //    .unwrap();
+
+    //esp_server
+    //    .fn_handler("/health", Method::Get, |request| {
+    //        let mut response = request.into_ok_response()?;
+    //        response.write_all(b"I am alive")?;
+    //        response.flush()?;
+    //        Ok(())
+    //    })
+    //    .unwrap();
+    //esp_server
+    //    .handler("/help", Method::Get, HelpHandler::new())
+    //    .unwrap();
 
     loop {
-        sleep(Duration::from_millis(1000));
+        sleep(Duration::from_millis(10));
     }
 }
