@@ -21,7 +21,7 @@ use rgb::RGBA8;
 use std::{
     error,
     io::{self, Read},
-    net::TcpListener,
+    net::UdpSocket,
     sync::RwLock,
 };
 use std::{num::NonZeroI32, sync::Arc};
@@ -94,25 +94,22 @@ fn connect_to_wifi(wifi_driver: &mut EspWifi) -> Result<(), EspError> {
     return Err(EspError::from_non_zero(NonZeroI32::new(12295).unwrap()));
 }
 
-fn update_rgba_from_tcp_msg(msg_arr: &[u8], read_length: usize, rgba: &mut RGBA8) {
+fn update_rgba_from_tcp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
     // Message format is:
     // r=VALUE,g=VALUE,b=VALUE,a=VALUE
 
-    if read_length <= 0 {
-        return;
-    }
-
-    let msg_str = std::str::from_utf8(&msg_arr[0..read_length - 1]).unwrap();
+    let msg_str = std::str::from_utf8(&msg_arr).unwrap();
 
     let channels = msg_str.split(",");
 
     for channel in channels {
         if let Some((channel_type, channel_value)) = channel.split_once("=") {
+            let Ok(new_value) = channel_value.to_string().parse::<u8>() else { return; };
             match channel_type {
-                "r" => rgba.r = channel_value.to_string().parse::<u8>().unwrap_or(rgba.r),
-                "g" => rgba.g = channel_value.to_string().parse::<u8>().unwrap_or(rgba.g),
-                "b" => rgba.b = channel_value.to_string().parse::<u8>().unwrap_or(rgba.b),
-                "a" => rgba.a = channel_value.to_string().parse::<u8>().unwrap_or(rgba.a),
+                "r" => rgba.r = new_value,
+                "g" => rgba.g = new_value,
+                "b" => rgba.b = new_value,
+                "a" => rgba.a = new_value,
                 _ => {
                     eprintln!("received unknown channel type: {}", channel_type)
                 }
@@ -187,41 +184,15 @@ fn main() -> Result<(), EspError> {
         a: 255,
     };
 
-    let listener = TcpListener::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
-    for stream in listener.incoming() {
-        let mut tcp_buf = [0 as u8; 50];
-        match stream {
-            Ok(mut stream) => {
-                println!(
-                    "received TCP connection from: {}",
-                    stream.peer_addr().unwrap()
-                );
-
-                // reading data
-                while match stream.read(&mut tcp_buf) {
-                    Ok(size) => {
-                        update_rgba_from_tcp_msg(&tcp_buf, size, &mut rgba);
-                        pwm_led.set_color(&rgba.get_updated_channels()).unwrap();
-                        true
-                    }
-                    Err(e) => {
-                        match e.kind() {
-                            io::ErrorKind::NotConnected => {
-                                println!("connection closed");
-                            }
-                            _ => {
-                                eprintln!("error when reading: {}", e);
-                            }
-                        }
-                        stream.shutdown(std::net::Shutdown::Both).unwrap();
-                        false
-                    }
-                } {}
-            }
-            Err(e) => {
-                eprintln!("error when handling incoming tcp stream: {}", e);
-            }
+    let mut udp_buf = [0 as u8; 24];
+    let listener = UdpSocket::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
+    loop {
+        let (number_of_bytes, _) = listener.recv_from(&mut udp_buf).unwrap();
+        if number_of_bytes < 1 {
+            continue;
         }
+        update_rgba_from_tcp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba);
+        pwm_led.set_color(&rgba.get_updated_channels()).unwrap();
     }
 
     //let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
@@ -255,8 +226,4 @@ fn main() -> Result<(), EspError> {
     //esp_server
     //    .handler("/help", Method::Get, HelpHandler::new())
     //    .unwrap();
-
-    loop {
-        sleep(Duration::from_millis(10));
-    }
 }
