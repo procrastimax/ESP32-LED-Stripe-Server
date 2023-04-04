@@ -114,6 +114,7 @@ fn update_rgba_from_tcp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
                     eprintln!("received unknown channel type: {}", channel_type)
                 }
             }
+            println!("type: {}, value: {}", channel_type, channel_value);
         };
     }
 }
@@ -186,6 +187,12 @@ fn main() -> Result<(), EspError> {
 
     let mut udp_buf = [0 as u8; 24];
     let listener = UdpSocket::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
+    listener
+        .set_nonblocking(false)
+        .expect("could not set blocking mode for udp socket!");
+    listener
+        .set_read_timeout(None)
+        .expect("setting read timeout feailed!");
     loop {
         let (number_of_bytes, _) = listener.recv_from(&mut udp_buf).unwrap();
         if number_of_bytes < 1 {
