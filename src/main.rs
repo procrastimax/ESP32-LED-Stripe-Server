@@ -37,6 +37,8 @@ use api_handler::{GetRGBAHandler, HelpHandler, SetRGBAHandler};
 
 use self::pwm_rgb_led::PwmRgbLed;
 
+use atoi::atoi;
+
 #[toml_cfg::toml_config]
 struct Settings {
     #[default("")]
@@ -93,25 +95,63 @@ fn update_rgba_from_udp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
     // Message format is:
     // r=VALUE,g=VALUE,b=VALUE,a=VALUE
 
-    let msg_str = std::str::from_utf8(&msg_arr).unwrap();
+    // ASCI decimal representation:
+    // \n -> 10
+    // '=' -> 61
+    // ',' -> 44
+    // 'r' -> 114
+    // 'g' -> 103
+    // 'b' -> 98
+    // 'a' -> 97
+    let mut last_equal_sign_idx: usize = 0;
+    let mut curr_channel_type: u8 = 0;
 
-    let channels = msg_str.split(",");
-
-    for channel in channels {
-        if let Some((channel_type, channel_value)) = channel.split_once("=") {
-            let Ok(new_value) = channel_value.to_string().parse::<u8>() else { return; };
-            match channel_type {
-                "r" => rgba.r = new_value,
-                "g" => rgba.g = new_value,
-                "b" => rgba.b = new_value,
-                "a" => rgba.a = new_value,
-                _ => {
-                    eprintln!("received unknown channel type: {}", channel_type)
+    for (idx, val) in msg_arr.iter().enumerate() {
+        // found '=' -> update channel type
+        if *val == 61 {
+            // get channel type, as char befor '='
+            if idx > 0 {
+                if msg_arr[idx - 1] == 114
+                    || msg_arr[idx - 1] == 103
+                    || msg_arr[idx - 1] == 98
+                    || msg_arr[idx - 1] == 97
+                {
+                    curr_channel_type = msg_arr[idx - 1];
+                    last_equal_sign_idx = idx;
+                } else {
+                    eprintln!("received unknown channel type: {}", msg_arr[idx - 1]);
                 }
+            } else {
+                eprintln!("received invalid data frame format!");
             }
-        };
+        }
+        // found ',' or newline (\n) -> update channel value and set matching rgba field
+        else if *val == 44 || *val == 10 {
+            // only update channel value, if channel type was set properly
+            if last_equal_sign_idx > 0 && curr_channel_type > 0 {
+                // calculate curr channel value from last '=' sign position
+                if let Some(curr_channel_value) = atoi::<u8>(&msg_arr[last_equal_sign_idx + 1..idx])
+                {
+                    match curr_channel_type {
+                        114 => rgba.r = curr_channel_value,
+                        103 => rgba.g = curr_channel_value,
+                        98 => rgba.b = curr_channel_value,
+                        97 => rgba.a = curr_channel_value,
+                        _ => {
+                            eprintln!("found non matching channel type: {}", curr_channel_type);
+                        }
+                    }
+                } else {
+                    eprintln!(
+                        "could not convert {:?} to u8 integer!",
+                        &msg_arr[last_equal_sign_idx + 1..idx]
+                    );
+                };
+            }
+        }
     }
 }
+
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -226,7 +266,7 @@ fn main() -> Result<(), EspError> {
                 continue;
             }
         };
-        update_rgba_from_udp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba_rwlock);
+        update_rgba_from_udp_msg(&udp_buf[0..number_of_bytes], &mut rgba_rwlock);
         drop(rgba_rwlock);
     });
 

@@ -7,8 +7,8 @@ use embedded_svc::io::Write;
 use esp_idf_svc::http::server::EspHttpConnection;
 use url::Url;
 
-use crate::pwm_rgb_led::PwmRgbLed;
-use crate::rgb_led::{RGBABrightnessExt, RGBA8};
+
+use crate::rgb_led::{RGBA8};
 
 pub struct GetRGBAHandler {
     pub rgba: Arc<RwLock<RGBA8>>,
