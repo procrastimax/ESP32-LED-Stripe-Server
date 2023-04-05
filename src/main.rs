@@ -290,6 +290,7 @@ fn main() -> Result<(), EspError> {
                 .expect("could not set color for pwm!");
             last_rgb = curr_rgb;
         }
-        std::thread::sleep(Duration::from_millis(50));
+        // sleeping for 25ms, so we can reach ~30 updates per second
+        std::thread::sleep(Duration::from_millis(25));
     }
 }
