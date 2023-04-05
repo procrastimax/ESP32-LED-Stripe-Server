@@ -16,14 +16,9 @@ use embedded_svc::{
     io::Write,
     wifi::{ClientConfiguration, Configuration, Wifi},
 };
-use rgb::RGBA8;
+use rgb::{RGB8, RGBA8};
 
-use std::{
-    error,
-    io::{self, Read},
-    net::UdpSocket,
-    sync::RwLock,
-};
+use std::{net::UdpSocket, sync::RwLock};
 use std::{num::NonZeroI32, sync::Arc};
 use std::{thread::sleep, time::Duration};
 
@@ -114,7 +109,6 @@ fn update_rgba_from_tcp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
                     eprintln!("received unknown channel type: {}", channel_type)
                 }
             }
-            println!("type: {}, value: {}", channel_type, channel_value);
         };
     }
 }
@@ -178,13 +172,6 @@ fn main() -> Result<(), EspError> {
         };
     }
 
-    let mut rgba = RGBA8 {
-        r: 0,
-        g: 0,
-        b: 0,
-        a: 255,
-    };
-
     let mut udp_buf = [0 as u8; 24];
     let listener = UdpSocket::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
     listener
@@ -193,44 +180,76 @@ fn main() -> Result<(), EspError> {
     listener
         .set_read_timeout(None)
         .expect("setting read timeout feailed!");
-    loop {
+
+    let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
+
+    let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
+
+    esp_server
+        .handler(
+            "/getRGBA",
+            Method::Get,
+            GetRGBAHandler::new(rgba_values.clone()),
+        )
+        .unwrap();
+
+    esp_server
+        .handler(
+            "/setRGBA",
+            Method::Get,
+            SetRGBAHandler::new(rgba_values.clone()),
+        )
+        .unwrap();
+
+    esp_server
+        .fn_handler("/health", Method::Get, |request| {
+            let mut response = request.into_ok_response()?;
+            response.write_all(b"I am alive")?;
+            response.flush()?;
+            Ok(())
+        })
+        .unwrap();
+    esp_server
+        .handler("/help", Method::Get, HelpHandler::new())
+        .unwrap();
+
+    let rgba_udp = rgba_values.clone();
+    std::thread::spawn(move || loop {
         let (number_of_bytes, _) = listener.recv_from(&mut udp_buf).unwrap();
         if number_of_bytes < 1 {
             continue;
         }
-        update_rgba_from_tcp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba);
-        pwm_led.set_color(&rgba.get_updated_channels()).unwrap();
+        let mut rgba_rwlock = match rgba_udp.write() {
+            Ok(val) => val,
+            Err(e) => {
+                eprintln!("could not get write lock for rgba_udp! Error: {}", e);
+                continue;
+            }
+        };
+        update_rgba_from_tcp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba_rwlock);
+        drop(rgba_rwlock);
+    });
+
+    let mut curr_rgb = RGB8 { r: 0, g: 0, b: 0 };
+    let mut last_rgb = RGB8 { r: 0, g: 0, b: 0 };
+
+    loop {
+        let rgba_read = match rgba_values.read() {
+            Ok(val) => val,
+            Err(e) => {
+                eprintln!("could not get read lock for rgba_read! Error: {}", e);
+                continue;
+            }
+        };
+        (*rgba_read).update_channels(&mut curr_rgb);
+        drop(rgba_read);
+
+        if curr_rgb != last_rgb {
+            pwm_led
+                .set_color(&curr_rgb)
+                .expect("could not set color for pwm!");
+            last_rgb = curr_rgb;
+        }
+        std::thread::sleep(Duration::from_millis(50));
     }
-
-    //let mut esp_server = EspHttpServer::new(&HttpConfiguration::default()).unwrap();
-
-    //let rgba_values = Arc::new(RwLock::new(RGBA8::new(0, 0, 0, 255)));
-
-    //esp_server
-    //    .handler(
-    //        "/getRGBA",
-    //        Method::Get,
-    //        GetRGBAHandler::new(rgba_values.clone()),
-    //    )
-    //    .unwrap();
-
-    //esp_server
-    //    .handler(
-    //        "/setRGBA",
-    //        Method::Get,
-    //        SetRGBAHandler::new(rgba_values.clone(), RwLock::new(pwm_led)),
-    //    )
-    //    .unwrap();
-
-    //esp_server
-    //    .fn_handler("/health", Method::Get, |request| {
-    //        let mut response = request.into_ok_response()?;
-    //        response.write_all(b"I am alive")?;
-    //        response.flush()?;
-    //        Ok(())
-    //    })
-    //    .unwrap();
-    //esp_server
-    //    .handler("/help", Method::Get, HelpHandler::new())
-    //    .unwrap();
 }

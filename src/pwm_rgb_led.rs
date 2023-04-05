@@ -2,8 +2,8 @@ use esp_idf_hal::{
     gpio::OutputPin,
     ledc::{config::TimerConfig, LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver},
 };
+use rgb::RGB8;
 
-use crate::rgb_led::RGB8;
 use esp_idf_hal::{peripheral::Peripheral, prelude::*};
 use esp_idf_sys::EspError;
 

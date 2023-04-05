@@ -41,21 +41,17 @@ impl Handler<EspHttpConnection<'_>> for GetRGBAHandler {
     }
 }
 
-pub struct SetRGBAHandler<'a> {
+pub struct SetRGBAHandler {
     rgba: Arc<RwLock<RGBA8>>,
-    led_handler: RwLock<PwmRgbLed<'a>>,
 }
 
-impl SetRGBAHandler<'_> {
-    pub fn new<'a>(
-        rgba: Arc<RwLock<RGBA8>>,
-        led_handler: RwLock<PwmRgbLed<'a>>,
-    ) -> SetRGBAHandler<'a> {
-        return SetRGBAHandler { rgba, led_handler };
+impl SetRGBAHandler {
+    pub fn new(rgba: Arc<RwLock<RGBA8>>) -> SetRGBAHandler {
+        return SetRGBAHandler { rgba };
     }
 }
 
-impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
+impl Handler<EspHttpConnection<'_>> for SetRGBAHandler {
     fn handle(&self, c: &mut EspHttpConnection<'_>) -> embedded_svc::http::server::HandlerResult {
         let req = Request::wrap(c);
 
@@ -98,24 +94,14 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler<'_> {
             }
         }
 
-        let rgb_out = new_rgba.get_updated_channels();
-
-        let handler = self.led_handler.write();
-        match handler {
-            Ok(mut val) => {
-                val.set_color(&rgb_out).unwrap();
-                let mut response = req.into_ok_response().unwrap();
-                response.write_fmt(format_args!(
-                    "{},{},{},{}",
-                    new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
-                ))?;
-                response.flush().unwrap();
-                Ok(())
-            }
-            Err(_) => {
-                return Err(send_error_response(req, "could not get write lock"));
-            }
-        }
+        let mut response = req.into_ok_response().unwrap();
+        //TODO: do not send this confirmation -> we currently have to, since the App Stripebuddy does not poll the actual current value after setting this, but instead waits for this response
+        response.write_fmt(format_args!(
+            "{},{},{},{}",
+            new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
+        ))?;
+        response.flush().unwrap();
+        Ok(())
     }
 }
 
