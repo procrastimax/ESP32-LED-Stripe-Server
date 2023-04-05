@@ -89,7 +89,7 @@ fn connect_to_wifi(wifi_driver: &mut EspWifi) -> Result<(), EspError> {
     return Err(EspError::from_non_zero(NonZeroI32::new(12295).unwrap()));
 }
 
-fn update_rgba_from_tcp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
+fn update_rgba_from_udp_msg(msg_arr: &[u8], rgba: &mut RGBA8) {
     // Message format is:
     // r=VALUE,g=VALUE,b=VALUE,a=VALUE
 
@@ -226,7 +226,7 @@ fn main() -> Result<(), EspError> {
                 continue;
             }
         };
-        update_rgba_from_tcp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba_rwlock);
+        update_rgba_from_udp_msg(&udp_buf[0..number_of_bytes - 1], &mut rgba_rwlock);
         drop(rgba_rwlock);
     });
 
