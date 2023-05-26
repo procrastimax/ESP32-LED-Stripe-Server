@@ -3,5 +3,3 @@ ssid = "HelloWorld"
 passphrase = "WorldHello"
 wifi_timeout_wait_seconds = 15
 wifi_connection_attempts = 5
-ssl_server_cert = []
-ssl_server_key = []

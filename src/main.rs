@@ -49,10 +49,6 @@ struct Settings {
     wifi_timeout_wait_seconds: u16,
     #[default(5)]
     wifi_connection_attempts: u16,
-    #[default([u8;0])]
-    ssl_server_cert: [u8; 0],
-    #[default([u8;0])]
-    ssl_server_key: [u8; 0],
 }
 
 fn create_wifi_driver<M: WifiModemPeripheral>(
@@ -213,7 +209,7 @@ fn main() -> Result<(), EspError> {
     }
 
     let mut udp_buf = [0 as u8; 24];
-    let listener = UdpSocket::bind("0.0.0.0:80").expect("Could not bin TCP listener!");
+    let listener = UdpSocket::bind("0.0.0.0:80").expect("Could not bind TCP listener!");
     listener
         .set_nonblocking(false)
         .expect("could not set blocking mode for udp socket!");

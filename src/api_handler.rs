@@ -2,13 +2,11 @@ use std::borrow::Borrow;
 use std::sync::{Arc, RwLock};
 
 use embedded_svc::http::server::{Handler, HandlerError, Request};
-use embedded_svc::http::Query;
 use embedded_svc::io::Write;
 use esp_idf_svc::http::server::EspHttpConnection;
 use url::Url;
 
-
-use crate::rgb_led::{RGBA8};
+use crate::rgb_led::RGBA8;
 
 pub struct GetRGBAHandler {
     pub rgba: Arc<RwLock<RGBA8>>,
@@ -95,7 +93,6 @@ impl Handler<EspHttpConnection<'_>> for SetRGBAHandler {
         }
 
         let mut response = req.into_ok_response().unwrap();
-        //TODO: do not send this confirmation -> we currently have to, since the App Stripebuddy does not poll the actual current value after setting this, but instead waits for this response
         response.write_fmt(format_args!(
             "{},{},{},{}",
             new_rgba.r, new_rgba.g, new_rgba.b, new_rgba.a
